@@ -1,0 +1,16 @@
+schema: "https://www.bezrealitky.cz/webgraphql"
+documents: "src/**/*.graphql"
+generates:
+  generated/scheme.graphql:
+    plugins:
+      - schema-ast
+  generated/queries.ts:
+    plugins:
+      - typescript-document-nodes
+  generated/types.ts:
+    plugins:
+      - typescript
+      - typescript-operations
+hooks:
+  afterOneFileWrite:
+    - prettier --write

@@ -1,0 +1,19 @@
+query AdvertList($location: GPSPointInput!) {
+  advertList(
+    locationPoint: $location
+    locationRadius: 4
+    offerType: PRONAJEM
+    estateType: BYT
+    disposition: [DISP_1_KK, DISP_1_1, DISP_2_KK]
+    priceTo: 18000
+    order: TIMEORDER_DESC
+  ) {
+    list {
+      id
+      absoluteUrl
+      priceFormatted
+      shortDescription
+      mainImageUrl(filter: RECORD_THUMB_BIG)
+    }
+  }
+}
