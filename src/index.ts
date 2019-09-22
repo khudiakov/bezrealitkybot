@@ -19,7 +19,9 @@ const REGULAR_INTERVAL =
 const BACKUP_PATH = process.env.BACKUP_PATH;
 const BACKUP_INTERVAL = parseInt(process.env.BACKUP_INTERVAL);
 
-const SUBSCRIBERS_BACKUP = `${BACKUP_PATH}/subscribers.json`;
+const SUBSCRIBERS_BACKUP = !BACKUP_PATH
+  ? null
+  : `${BACKUP_PATH}/subscribers.json`;
 
 const API = "https://www.bezrealitky.cz/webgraphql";
 
@@ -106,6 +108,10 @@ const formatSubscribersLog = (
         const results = await fetchAdvert(subscriber.variables);
         const recentAdvertId = results.length > 0 ? results[0].id : null;
 
+        if (recentAdvertId == null) {
+          return;
+        }
+
         if (subscriber.cursor == null) {
           subscriber.cursor = recentAdvertId;
           return;
@@ -135,6 +141,12 @@ const formatSubscribersLog = (
 })();
 
 (() => {
+  if (!SUBSCRIBERS_BACKUP) {
+    console.warn(`Backup is disabled`);
+
+    return;
+  }
+
   try {
     const subscribersPersist = require(SUBSCRIBERS_BACKUP);
     subscribers = new Map(subscribersPersist);
