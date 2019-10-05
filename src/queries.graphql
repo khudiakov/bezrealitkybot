@@ -1,4 +1,4 @@
-query AdvertList($location: GPSPointInput!, $radius: Int!) {
+query AdvertList($location: GPSPointInput!, $radius: Int = 4) {
   advertList(
     locationPoint: $location
     locationRadius: $radius

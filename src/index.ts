@@ -12,7 +12,6 @@ import { AdvertList } from "../generated/queries";
 import { AdvertListQuery, AdvertListQueryVariables } from "../generated/types";
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
-const DEFAULT_RADIUS = 4;
 
 const PREMIUM_INTERVAL = parseInt(process.env.PREMIUM_INTERVAL);
 const REGULAR_INTERVAL =
@@ -178,7 +177,7 @@ const getSubscriber = (chatId: number) => {
   }
 
   subscribers.set(chatId, {
-    variables: { radius: DEFAULT_RADIUS, location: null },
+    variables: null,
     cursor: null,
     isPremium: false
   });
