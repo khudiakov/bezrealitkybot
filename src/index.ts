@@ -6,11 +6,13 @@ import fetch from "node-fetch";
 import Telegraf from "telegraf";
 import { format } from "date-fns";
 import * as fs from "fs";
+import * as R from "ramda";
 
 import { AdvertList } from "../generated/queries";
 import { AdvertListQuery, AdvertListQueryVariables } from "../generated/types";
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
+const DEFAULT_RADIUS = 4;
 
 const PREMIUM_INTERVAL = parseInt(process.env.PREMIUM_INTERVAL);
 const REGULAR_INTERVAL =
@@ -99,7 +101,7 @@ const formatSubscribersLog = (
         const subscriber = subscribers.get(key);
 
         if (
-          subscriber.variables == null ||
+          R.isNil(R.prop("location", subscriber.variables)) ||
           (!subscriber.isPremium && timestamp % REGULAR_INTERVAL !== 0)
         ) {
           return;
@@ -176,7 +178,7 @@ const getSubscriber = (chatId: number) => {
   }
 
   subscribers.set(chatId, {
-    variables: null,
+    variables: { radius: DEFAULT_RADIUS, location: null },
     cursor: null,
     isPremium: false
   });
@@ -189,12 +191,14 @@ bot.start(ctx => {
 });
 bot.on("location", ctx => {
   const subscriber = getSubscriber(ctx.chat.id);
-  subscriber.variables = {
-    location: {
+  subscriber.variables = R.set(
+    R.lensProp("location"),
+    {
       lat: ctx.update.message.location.latitude,
       lng: ctx.update.message.location.longitude
-    }
-  };
+    },
+    subscriber.variables
+  );
   subscriber.cursor = null;
 
   ctx.reply("You have been subscribed");
@@ -217,9 +221,30 @@ bot.command("subscription", async ctx => {
     { parse_mode: "Markdown" }
   );
 });
+bot.command("radius", async ctx => {
+  const subscriber = getSubscriber(ctx.chat.id);
+
+  const radiusMatch = ctx.update.message.text.match(/\/radius (\d+)/);
+  if (radiusMatch == null) {
+    ctx.reply("Send new radius in format: /radius 5");
+    return;
+  }
+
+  subscriber.variables = R.set(
+    R.lensProp("radius"),
+    parseInt(radiusMatch[1]),
+    subscriber.variables
+  );
+
+  ctx.reply("Your search radius has been updated");
+});
 bot.command("cancel", ctx => {
   const subscriber = getSubscriber(ctx.chat.id);
-  subscriber.variables = null;
+  subscriber.variables = R.set(
+    R.lensProp("location"),
+    null,
+    subscriber.variables
+  );
 
   ctx.reply("Your subscription was canceled");
 });

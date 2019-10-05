@@ -1,7 +1,7 @@
-query AdvertList($location: GPSPointInput!) {
+query AdvertList($location: GPSPointInput!, $radius: Int!) {
   advertList(
     locationPoint: $location
-    locationRadius: 4
+    locationRadius: $radius
     offerType: PRONAJEM
     estateType: BYT
     disposition: [DISP_1_KK, DISP_1_1, DISP_2_KK]
