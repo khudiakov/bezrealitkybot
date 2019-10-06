@@ -9,7 +9,11 @@ import * as fs from "fs";
 import * as R from "ramda";
 
 import { AdvertList } from "../generated/queries";
-import { AdvertListQuery, AdvertListQueryVariables } from "../generated/types";
+import {
+  AdvertListQuery,
+  AdvertListQueryVariables,
+  Advert
+} from "../generated/types";
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
 
@@ -88,6 +92,16 @@ const formatSubscribersLog = (
     .join("\n\n");
 };
 
+const sendAdvert = (chatId: number) => (advert: Advert) => {
+  bot.telegram.sendPhoto(chatId, advert.mainImageUrl, {
+    caption:
+      `[${advert.shortDescription}](${advert.absoluteUrl})\n` +
+      `*${advert.priceFormatted}*`,
+    // @ts-ignore
+    parse_mode: "Markdown"
+  });
+};
+
 (async () => {
   while (true) {
     const now = Date.now();
@@ -98,6 +112,7 @@ const formatSubscribersLog = (
     await Promise.all(
       Array.from(subscribers.keys()).map(async key => {
         const subscriber = subscribers.get(key);
+        const send = sendAdvert(key);
 
         if (
           R.isNil(R.prop("location", subscriber.variables)) ||
@@ -115,6 +130,7 @@ const formatSubscribersLog = (
 
         if (subscriber.cursor == null) {
           subscriber.cursor = recentAdvertId;
+          send(results[0]);
           return;
         }
 
@@ -123,16 +139,7 @@ const formatSubscribersLog = (
           cursorIndex = results.length;
         }
 
-        results
-          .slice(0, cursorIndex)
-          .forEach(r =>
-            bot.telegram.sendMessage(
-              key,
-              `[${r.absoluteUrl}](${r.shortDescription})`,
-              { parse_mode: "Markdown" }
-            )
-          );
-
+        results.slice(0, cursorIndex).forEach(send);
         subscriber.cursor = recentAdvertId;
       })
     );
