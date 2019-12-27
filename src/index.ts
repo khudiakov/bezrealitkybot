@@ -6,9 +6,14 @@ import fetch from "node-fetch";
 import Telegraf from "telegraf";
 import { format } from "date-fns";
 import * as fs from "fs";
+import * as R from "ramda";
 
 import { AdvertList } from "../generated/queries";
-import { AdvertListQuery, AdvertListQueryVariables } from "../generated/types";
+import {
+  AdvertListQuery,
+  AdvertListQueryVariables,
+  Advert
+} from "../generated/types";
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
 
@@ -87,6 +92,16 @@ const formatSubscribersLog = (
     .join("\n\n");
 };
 
+const sendAdvert = (chatId: number) => (advert: Advert) => {
+  bot.telegram.sendPhoto(chatId, advert.mainImageUrl, {
+    caption:
+      `[${advert.shortDescription}](${advert.absoluteUrl})\n` +
+      `*${advert.priceFormatted}*`,
+    // @ts-ignore
+    parse_mode: "Markdown"
+  });
+};
+
 (async () => {
   while (true) {
     const now = Date.now();
@@ -97,9 +112,10 @@ const formatSubscribersLog = (
     await Promise.all(
       Array.from(subscribers.keys()).map(async key => {
         const subscriber = subscribers.get(key);
+        const send = sendAdvert(key);
 
         if (
-          subscriber.variables == null ||
+          R.isNil(R.prop("location", subscriber.variables)) ||
           (!subscriber.isPremium && timestamp % REGULAR_INTERVAL !== 0)
         ) {
           return;
@@ -114,6 +130,7 @@ const formatSubscribersLog = (
 
         if (subscriber.cursor == null) {
           subscriber.cursor = recentAdvertId;
+          send(results[0]);
           return;
         }
 
@@ -122,16 +139,7 @@ const formatSubscribersLog = (
           cursorIndex = results.length;
         }
 
-        results
-          .slice(0, cursorIndex)
-          .forEach(r =>
-            bot.telegram.sendMessage(
-              key,
-              `[${r.absoluteUrl}](${r.shortDescription})`,
-              { parse_mode: "Markdown" }
-            )
-          );
-
+        results.slice(0, cursorIndex).forEach(send);
         subscriber.cursor = recentAdvertId;
       })
     );
@@ -189,12 +197,14 @@ bot.start(ctx => {
 });
 bot.on("location", ctx => {
   const subscriber = getSubscriber(ctx.chat.id);
-  subscriber.variables = {
-    location: {
+  subscriber.variables = R.set(
+    R.lensProp("location"),
+    {
       lat: ctx.update.message.location.latitude,
       lng: ctx.update.message.location.longitude
-    }
-  };
+    },
+    subscriber.variables
+  );
   subscriber.cursor = null;
 
   ctx.reply("You have been subscribed");
@@ -217,9 +227,30 @@ bot.command("subscription", async ctx => {
     { parse_mode: "Markdown" }
   );
 });
+bot.command("radius", async ctx => {
+  const subscriber = getSubscriber(ctx.chat.id);
+
+  const radiusMatch = ctx.update.message.text.match(/\/radius (\d+)/);
+  if (radiusMatch == null) {
+    ctx.reply("Send new radius in format: /radius 5");
+    return;
+  }
+
+  subscriber.variables = R.set(
+    R.lensProp("radius"),
+    parseInt(radiusMatch[1]),
+    subscriber.variables
+  );
+
+  ctx.reply("Your search radius has been updated");
+});
 bot.command("cancel", ctx => {
   const subscriber = getSubscriber(ctx.chat.id);
-  subscriber.variables = null;
+  subscriber.variables = R.set(
+    R.lensProp("location"),
+    null,
+    subscriber.variables
+  );
 
   ctx.reply("Your subscription was canceled");
 });
