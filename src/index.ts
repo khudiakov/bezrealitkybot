@@ -136,7 +136,7 @@ const sendAdvert = (chatId: number) => (advert: Advert) => {
 
         let cursorIndex = results.findIndex(r => r.id === subscriber.cursor);
         if (cursorIndex === -1) {
-          cursorIndex = results.length;
+          cursorIndex = 1;
         }
 
         results.slice(0, cursorIndex).forEach(send);
