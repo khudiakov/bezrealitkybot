@@ -211,7 +211,7 @@ bot.on("location", ctx => {
 });
 bot.command("subscription", async ctx => {
   const subscriber = getSubscriber(ctx.chat.id);
-  if (subscriber.variables == null) {
+  if (subscriber.variables == null || subscriber.variables.location == null) {
     ctx.reply("You have no subscription");
     return;
   }
