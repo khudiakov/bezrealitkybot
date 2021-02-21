@@ -12,6 +12,20 @@ query AdvertList($location: GPSPointInput!, $radius: Int = 4) {
       priceFormatted
       shortDescription
       mainImageUrl(filter: RECORD_THUMB_BIG)
+      addressUserInput
+    }
+  }
+}
+
+query AdvertListBuy($priceTo: Int = 8000000) {
+  advertList(offerType: PRODEJ, estateType: [BYT, DUM], order: TIMEORDER_DESC, priceTo: $priceTo, limit: 10) {
+    list {
+      id
+      absoluteUrl
+      priceFormatted
+      shortDescription
+      mainImageUrl(filter: RECORD_THUMB_BIG)
+      addressUserInput
     }
   }
 }

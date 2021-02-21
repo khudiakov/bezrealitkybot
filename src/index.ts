@@ -1,25 +1,34 @@
-require("dotenv").config();
-import { createHttpLink } from "apollo-link-http";
-import { InMemoryCache } from "apollo-cache-inmemory";
-import ApolloClient from "apollo-client";
+if (process.env.NODE_ENV !== "production") {
+  require("dotenv").config();
+}
+
+import { ApolloClient, HttpLink } from "@apollo/client/core";
+import { InMemoryCache } from "@apollo/client/cache";
 import fetch from "node-fetch";
-import Telegraf from "telegraf";
+import { Telegraf } from "telegraf";
 import { format } from "date-fns";
 import * as fs from "fs";
 import * as R from "ramda";
-
-import { AdvertList } from "../generated/queries";
+import { iForEach, tillDone } from "./i-ramda";
+import { AdvertList, AdvertListBuy } from "../generated/queries";
 import {
   AdvertListQuery,
   AdvertListQueryVariables,
-  Advert
+  Advert,
+  AdvertListBuyQuery,
+  AdvertListBuyQueryVariables,
 } from "../generated/types";
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
 
-const PREMIUM_INTERVAL = parseInt(process.env.PREMIUM_INTERVAL);
+const UPDATE_INTERVAL = 60 * 1000;
+
+const PREMIUM_INTERVAL =
+  parseInt(process.env.PREMIUM_INTERVAL_PRIME) * UPDATE_INTERVAL;
 const REGULAR_INTERVAL =
-  PREMIUM_INTERVAL * parseInt(process.env.REGULAR_INTERVAL_MULTIPLIER);
+  parseInt(process.env.REGULAR_INTERVAL_PRIME) * UPDATE_INTERVAL;
+const BUYER_INTERVAL =
+  parseInt(process.env._BUYER_INTERVAL_PRIME) * UPDATE_INTERVAL;
 
 const BACKUP_PATH = process.env.BACKUP_PATH;
 const BACKUP_INTERVAL = parseInt(process.env.BACKUP_INTERVAL);
@@ -33,27 +42,46 @@ const API = "https://www.bezrealitky.cz/webgraphql";
 let lastUpdate = null;
 
 const client = new ApolloClient({
-  link: createHttpLink({ uri: API, fetch }),
-  cache: new InMemoryCache()
+  link: new HttpLink({ uri: API, fetch }),
+  cache: new InMemoryCache(),
 });
 
-interface ISubscriber {
-  variables: AdvertListQueryVariables | null;
+interface ISubscription {
   cursor: number | null;
+  variables: AdvertListQueryVariables | null;
+  isBuyer: boolean;
+}
+
+interface ISubscriber {
   isPremium: boolean;
+  subscriptions: ISubscription[];
 }
 
 let subscribers = new Map<number, ISubscriber>();
 
-const fetchAdvert = async (variables: AdvertListQueryVariables) => {
+const fetchAdvert = async (
+  variables: AdvertListQueryVariables,
+  opts?: { isBuyer?: boolean }
+) => {
   try {
+    if (opts?.isBuyer) {
+      const { data } = await client.query<
+        AdvertListBuyQuery,
+        AdvertListBuyQueryVariables
+      >({
+        query: AdvertListBuy,
+        fetchPolicy: "no-cache",
+      });
+      return data?.advertList?.list ?? [];
+    }
+
     const { data } = await client.query<
       AdvertListQuery,
       AdvertListQueryVariables
     >({
       query: AdvertList,
       variables,
-      fetchPolicy: "no-cache"
+      fetchPolicy: "no-cache",
     });
 
     return (data && data.advertList && data.advertList.list) || [];
@@ -64,7 +92,7 @@ const fetchAdvert = async (variables: AdvertListQueryVariables) => {
 };
 
 const sleep = (duration: number) =>
-  new Promise(resolve => setTimeout(resolve, duration));
+  new Promise((resolve) => setTimeout(resolve, duration));
 
 const nextUpdateTime = (isPremium: boolean) => {
   const now = Date.now();
@@ -96,55 +124,76 @@ const sendAdvert = (chatId: number) => (advert: Advert) => {
   bot.telegram.sendPhoto(chatId, advert.mainImageUrl, {
     caption:
       `[${advert.shortDescription}](${advert.absoluteUrl})\n` +
-      `*${advert.priceFormatted}*`,
+      `*${advert.priceFormatted}*\n` +
+      `[${
+        advert.addressUserInput
+      }](https://www.google.com/maps/search/${encodeURI(
+        advert.addressUserInput.replace(/\s/g, "+")
+      )})`,
     // @ts-ignore
-    parse_mode: "Markdown"
+    parse_mode: "Markdown",
   });
+};
+
+const getNewAdverts = async (subscription: ISubscription) => {
+  const results = await fetchAdvert(subscription.variables, {
+    isBuyer: subscription.isBuyer,
+  });
+
+  if (subscription.cursor == null) {
+    return results.slice(0, 1);
+  }
+
+  let cursorIndex = results.findIndex((r) => r.id === subscription.cursor);
+  if (cursorIndex === -1) {
+    cursorIndex = 1;
+  }
+
+  return results.slice(0, cursorIndex);
+};
+
+const updateSubscriptionCursor = (adverts, subscription) => {
+  if (adverts.length === 0) {
+    return { ...subscription };
+  }
+
+  return {
+    ...subscription,
+    cursor: adverts[0].id,
+  };
 };
 
 (async () => {
   while (true) {
     const now = Date.now();
-    const timestamp = now - (now % PREMIUM_INTERVAL);
+    const timestamp = now - (now % UPDATE_INTERVAL);
 
     lastUpdate = timestamp;
 
-    await Promise.all(
-      Array.from(subscribers.keys()).map(async key => {
-        const subscriber = subscribers.get(key);
+    await tillDone(
+      iForEach(async ([key, subscriber]) => {
         const send = sendAdvert(key);
+        const subscriptions = await Promise.all(
+          subscriber.subscriptions.map(async (s) => {
+            const interval = s.isBuyer
+              ? BUYER_INTERVAL
+              : subscriber.isPremium
+              ? PREMIUM_INTERVAL
+              : REGULAR_INTERVAL;
+            if (timestamp % interval !== 0) {
+              return s;
+            }
 
-        if (
-          R.isNil(R.prop("location", subscriber.variables)) ||
-          (!subscriber.isPremium && timestamp % REGULAR_INTERVAL !== 0)
-        ) {
-          return;
-        }
-
-        const results = await fetchAdvert(subscriber.variables);
-        const recentAdvertId = results.length > 0 ? results[0].id : null;
-
-        if (recentAdvertId == null) {
-          return;
-        }
-
-        if (subscriber.cursor == null) {
-          subscriber.cursor = recentAdvertId;
-          send(results[0]);
-          return;
-        }
-
-        let cursorIndex = results.findIndex(r => r.id === subscriber.cursor);
-        if (cursorIndex === -1) {
-          cursorIndex = 1;
-        }
-
-        results.slice(0, cursorIndex).forEach(send);
-        subscriber.cursor = recentAdvertId;
-      })
+            const adverts = await getNewAdverts(s);
+            adverts.forEach(send);
+            return updateSubscriptionCursor(adverts, s);
+          })
+        );
+        subscribers.set(key, { ...subscriber, subscriptions });
+      }, subscribers.entries())
     );
 
-    await sleep(PREMIUM_INTERVAL);
+    await sleep(UPDATE_INTERVAL);
   }
 })();
 
@@ -166,7 +215,7 @@ const sendAdvert = (chatId: number) => (advert: Advert) => {
     fs.writeFile(
       SUBSCRIBERS_BACKUP,
       JSON.stringify(Array.from(subscribers.entries())),
-      err => {
+      (err) => {
         if (err) {
           console.warn(err);
           return;
@@ -183,82 +232,125 @@ const getSubscriber = (chatId: number) => {
     return subscribers.get(chatId);
   }
 
-  subscribers.set(chatId, {
-    variables: null,
-    cursor: null,
-    isPremium: false
-  });
+  subscribers.set(chatId, { isPremium: false, subscriptions: [] });
   return subscribers.get(chatId);
+};
+const sendSubscription = async (ctx: any, subscription: ISubscription) => {
+  if (subscription.isBuyer) {
+    await ctx.telegram.sendMessage(ctx.chat.id, "*Buyer*", {
+      parse_mode: "Markdown",
+    });
+    return;
+  }
+  await ctx.telegram.sendLocation(
+    ctx.chat.id,
+    subscription.variables.location.lat,
+    subscription.variables.location.lng
+  );
 };
 
 const bot = new Telegraf(BOT_TOKEN);
-bot.start(ctx => {
+bot.start((ctx) => {
   ctx.reply("Welcome!");
 });
-bot.on("location", ctx => {
+bot.on("location", (ctx) => {
   const subscriber = getSubscriber(ctx.chat.id);
-  subscriber.variables = R.set(
-    R.lensProp("location"),
-    {
-      lat: ctx.update.message.location.latitude,
-      lng: ctx.update.message.location.longitude
-    },
-    subscriber.variables
-  );
-  subscriber.cursor = null;
 
-  ctx.reply("You have been subscribed");
-});
-bot.command("subscription", async ctx => {
-  const subscriber = getSubscriber(ctx.chat.id);
-  if (subscriber.variables == null || subscriber.variables.location == null) {
-    ctx.reply("You have no subscription");
+  if (!subscriber.isPremium && subscriber.subscriptions.length !== 0) {
+    ctx.reply("You have too many subscriptions");
     return;
   }
 
-  await ctx.telegram.sendLocation(
-    ctx.chat.id,
-    subscriber.variables.location.lat,
-    subscriber.variables.location.lng
-  );
+  const subscription = {
+    cursor: null,
+    isBuyer: false,
+    variables: {
+      location: {
+        lat: ctx.update.message.location.latitude,
+        lng: ctx.update.message.location.longitude,
+      },
+    },
+  };
+
+  subscriber.subscriptions = subscriber.subscriptions.concat([subscription]);
+  ctx.reply("You have been subscribed");
+});
+bot.command("subscription", async (ctx) => {
+  const subscriber = getSubscriber(ctx.chat.id);
+
+  if (subscriber.subscriptions.length === 0) {
+    await ctx.telegram.sendMessage(ctx.chat.id, `You have no subscriptions`, {
+      parse_mode: "Markdown",
+    });
+    return;
+  }
+
+  for (const subscription of subscriber.subscriptions) {
+    await sendSubscription(ctx, subscription);
+  }
   await ctx.telegram.sendMessage(
     ctx.chat.id,
     `NEXT UPDATE TIME: *${nextUpdateTime(subscriber.isPremium)}*`,
     { parse_mode: "Markdown" }
   );
 });
-bot.command("radius", async ctx => {
+bot.command("radius", async (ctx) => {
   const subscriber = getSubscriber(ctx.chat.id);
 
-  const radiusMatch = ctx.update.message.text.match(/\/radius (\d+)/);
+  const radiusMatch = ctx.update.message.text.match(/\/radius (\d+) (\d+)/);
   if (radiusMatch == null) {
-    ctx.reply("Send new radius in format: /radius 5");
+    ctx.reply(
+      "BAD FORMAT: /radius <subscription-number> <subscription-radius>"
+    );
     return;
   }
 
-  subscriber.variables = R.set(
+  const index = parseInt(radiusMatch[1]) - 1;
+  const radius = parseInt(radiusMatch[2]);
+
+  const subscription = subscriber.subscriptions[index];
+  if (subscription == null) {
+    ctx.reply(`Subscription #${radiusMatch[1]} doesn't exist`);
+    return;
+  }
+
+  subscription.variables = R.set(
     R.lensProp("radius"),
-    parseInt(radiusMatch[1]),
-    subscriber.variables
+    radius,
+    subscription.variables
   );
 
   ctx.reply("Your search radius has been updated");
 });
-bot.command("cancel", ctx => {
+bot.command("cancel", (ctx) => {
   const subscriber = getSubscriber(ctx.chat.id);
-  subscriber.variables = R.set(
-    R.lensProp("location"),
-    null,
-    subscriber.variables
-  );
 
-  ctx.reply("Your subscription was canceled");
+  const cancelMatch = ctx.update.message.text.match(/\/cancel (\d+)/);
+  if (cancelMatch == null) {
+    ctx.reply("BAD FORMAT: /cancel <subscription-number>");
+    return;
+  }
+
+  const index = parseInt(cancelMatch[1]) - 1;
+
+  const subscription = subscriber.subscriptions[index];
+  if (subscription == null) {
+    ctx.reply(`Subscription #${cancelMatch[1]} doesn't exist`);
+    return;
+  }
+
+  subscriber.subscriptions = subscriber.subscriptions
+    .slice(0, index)
+    .concat(
+      subscriber.subscriptions.slice(index + 1, subscriber.subscriptions.length)
+    );
+  ctx.reply(`Subscription #${cancelMatch[1]} was canceled`);
 });
-bot.command("stop", ctx => {
+bot.command("stop", (ctx) => {
   subscribers.delete(ctx.chat.id);
 });
 
-bot.command("_monitor", ctx => {
+bot.command("_monitor", (ctx) => {
   const subscribersArray = Array.from(subscribers.entries());
   const subscribersLog = formatSubscribersLog(subscribersArray);
 
@@ -269,17 +361,28 @@ bot.command("_monitor", ctx => {
     { parse_mode: "Markdown" }
   );
 });
-bot.command("_regular", ctx => {
+bot.command("_regular", (ctx) => {
   const subscriber = getSubscriber(ctx.chat.id);
   subscriber.isPremium = false;
 
   ctx.reply("You are regular now");
 });
-bot.command("_premium", ctx => {
+bot.command("_premium", (ctx) => {
   const subscriber = getSubscriber(ctx.chat.id);
   subscriber.isPremium = true;
 
   ctx.reply("You are premium now");
+});
+bot.command("_buyer", (ctx) => {
+  const subscriber = getSubscriber(ctx.chat.id);
+  const isBuyer = subscriber.subscriptions.some((s) => s.isBuyer === true);
+  if (!isBuyer) {
+    subscriber.subscriptions = subscriber.subscriptions.concat([
+      { isBuyer: true, variables: null, cursor: null },
+    ]);
+  }
+
+  ctx.reply("You are a buyer now");
 });
 
 bot.launch();

@@ -1,31 +1,23 @@
 ARG NODE_ENV=production
 
-FROM node:12.4.0-alpine AS builder
+FROM node:14.15.5-alpine AS builder
+RUN npm install -g npm
 
 WORKDIR /app
 
 COPY package.json package-lock.json ./
 RUN npm install
 
-COPY codegen.yml ./src ./
+COPY codegen.yml ./
 COPY src ./src
+
 RUN npm run generate
+RUN npm run build
 
-RUN npm run compile
-
-
-FROM node:12.4.0-alpine
+FROM node:14.15.5-alpine
 ARG NODE_ENV
 
-WORKDIR /app
-
-COPY --from=builder /app/generated ./generated
-
-COPY package.json package-lock.json ./
-RUN npm install --production
-
-COPY .env.production ./.env
-COPY ./src ./src
+COPY --from=builder /app/dist ./dist
 
 ENV NODE_ENV=${NODE_ENV}
-CMD ["npm", "start"]
+CMD ["node", "dist/app.js"]

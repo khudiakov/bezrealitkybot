@@ -1,41 +1,35 @@
 {
   "name": "bezbezrealitky",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "description": "",
   "scripts": {
-    "start": "node -r ts-node/register/transpile-only src/index.ts",
-    "development": "concurrently \"npm run nodemon\" \"npm run generate -- --watch\"",
-    "nodemon": "nodemon --watch src --ext ts --exec ts-node src/index.ts",
+    "start": "node dist/app.js",
     "generate": "graphql-codegen",
+    "build": "esbuild src/index.ts --bundle --platform=node --target=node14.15  --outfile=dist/app.js",
     "compile": "tsc --noEmit src/index.ts",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "apollo-cache-inmemory": "1.6.3",
-    "apollo-client": "2.6.4",
-    "apollo-link-http": "1.5.16",
+    "@apollo/client": "3.3.11",
+    "@graphql-codegen/cli": "1.20.1",
+    "@graphql-codegen/schema-ast": "1.18.1",
+    "@graphql-codegen/typescript": "1.21.0",
+    "@graphql-codegen/typescript-document-nodes": "1.17.9",
+    "@graphql-codegen/typescript-operations": "1.17.14",
+    "@types/node": "14.14.31",
+    "@types/ramda": "0.27.38",
     "date-fns": "2.2.1",
     "dotenv": "8.1.0",
-    "graphql": "14.5.6",
-    "graphql-tag": "2.10.1",
-    "node-fetch": "2.6.0",
-    "ramda": "0.26.1",
-    "telegraf": "3.32.0",
-    "ts-node": "8.4.1",
-    "typescript": "3.6.3"
+    "esbuild": "0.8.49",
+    "graphql": "15.5.0",
+    "node-fetch": "2.6.1",
+    "ramda": "0.27.1",
+    "telegraf": "4.0.3",
+    "typescript": "4.1.5"
   },
   "devDependencies": {
-    "@graphql-codegen/cli": "1.7.0",
-    "@graphql-codegen/schema-ast": "1.7.0",
-    "@graphql-codegen/typescript": "1.7.0",
-    "@graphql-codegen/typescript-document-nodes": "1.7.0",
-    "@graphql-codegen/typescript-operations": "1.7.0",
-    "@types/node": "12.7.5",
-    "@types/ramda": "0.26.22",
-    "concurrently": "4.1.2",
-    "nodemon": "1.19.2",
-    "prettier": "1.18.2"
+    "prettier": "2.2.1"
   }
 }

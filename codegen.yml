@@ -7,6 +7,8 @@ generates:
   generated/queries.ts:
     plugins:
       - typescript-document-nodes
+    config:
+      gqlImport: "@apollo/client/core#gql"
   generated/types.ts:
     plugins:
       - typescript
