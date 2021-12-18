@@ -125,11 +125,10 @@ const sendAdvert = (chatId: number) => (advert: Advert) => {
     caption:
       `[${advert.shortDescription}](${advert.absoluteUrl})\n` +
       `*${advert.priceFormatted}*\n` +
-      `[${
-        advert.addressUserInput
-      }](https://www.google.com/maps/search/${encodeURI(
-        advert.addressUserInput.replace(/\s/g, "+")
-      )})`,
+      (advert.addressUserInput == null ? "" : `[${advert.addressUserInput
+        }](https://www.google.com/maps/search/${encodeURI(
+          advert.addressUserInput.replace(/\s/g, "+")
+        )})`),
     // @ts-ignore
     parse_mode: "Markdown",
   });
@@ -178,8 +177,8 @@ const updateSubscriptionCursor = (adverts, subscription) => {
             const interval = s.isBuyer
               ? BUYER_INTERVAL
               : subscriber.isPremium
-              ? PREMIUM_INTERVAL
-              : REGULAR_INTERVAL;
+                ? PREMIUM_INTERVAL
+                : REGULAR_INTERVAL;
             if (timestamp % interval !== 0) {
               return s;
             }
@@ -357,7 +356,7 @@ bot.command("_monitor", (ctx) => {
   ctx.telegram.sendMessage(
     ctx.chat.id,
     `_Last Update:_\n${new Date(lastUpdate).toUTCString()}\n\n` +
-      `_Subscribers (${subscribersArray.length}):_${subscribersLog}\n\n`,
+    `_Subscribers (${subscribersArray.length}):_${subscribersLog}\n\n`,
     { parse_mode: "Markdown" }
   );
 });
