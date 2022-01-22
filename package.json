@@ -24,7 +24,7 @@
     "dotenv": "8.1.0",
     "esbuild": "0.8.49",
     "graphql": "15.5.0",
-    "node-fetch": "2.6.1",
+    "node-fetch": "3.1.1",
     "ramda": "0.27.1",
     "telegraf": "4.0.3",
     "typescript": "4.1.5"
