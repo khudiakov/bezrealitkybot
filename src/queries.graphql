@@ -1,6 +1,6 @@
-query AdvertList($ids: [Int]) {
+query AdvertList($boundaryPoints: [GPSPointInput!]!) {
   advertList(
-    ids: $ids
+    boundaryPoints: $boundaryPoints
     offerType: PRONAJEM
     estateType: BYT
     order: TIMEORDER_DESC

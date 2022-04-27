@@ -14,10 +14,11 @@ import {
   BACKUP_INTERVAL,
   BOT_TOKEN,
   INIT_KEYS_ARG_KEY,
-  PRAGUE_IDS,
   SUBSCRIBERS_BACKUP,
   UPDATE_INTERVAL,
 } from "./constants";
+
+import PRAGUE_BOUNDARIES from "./boundaries/prague.json";
 
 type TAdvertType = AdvertListQuery["advertList"]["list"][0];
 
@@ -40,7 +41,7 @@ const fetchAdvert = async () => {
     >({
       query: AdvertList,
       variables: {
-        ids: PRAGUE_IDS,
+        boundaryPoints: PRAGUE_BOUNDARIES as AdvertListQueryVariables["boundaryPoints"],
       },
       fetchPolicy: "no-cache",
     });
