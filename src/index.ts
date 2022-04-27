@@ -72,7 +72,7 @@ const formatSubscribersLog = (
     .join("\n\n");
 };
 
-const sendAdvert = (chatId: number) => (advert: Advert) => {
+const sendAdvert = (chatId: number) => (advert: Advert) =>
   bot.telegram.sendPhoto(chatId, advert.mainImageUrl, {
     caption:
       `[${advert.shortDescription}](${advert.absoluteUrl})\n` +
@@ -87,11 +87,10 @@ const sendAdvert = (chatId: number) => (advert: Advert) => {
     // @ts-ignore
     parse_mode: "Markdown",
   });
-};
 
 const getNewAdverts = (adverts: TAdvertType[], prevAdvertsIds: number[]) => {
   if (prevAdvertsIds.length === 0) {
-    return adverts.slice(0, 1);
+    return [];
   }
 
   let cursorIndex = adverts.findIndex((r) => prevAdvertsIds.includes(r.id));
@@ -116,6 +115,24 @@ if (initKeysArg) {
   });
 }
 
+const doSequantally = async <T>(
+  action: (v: T) => Promise<unknown>,
+  values: T[]
+) => {
+  for (const v of values) {
+    await action(v);
+  }
+};
+
+const handleSendError = (subscriberKey: number) => (
+  e: Error & { code?: number }
+) => {
+  console.log(subscriberKey, " failed to send with code: ", e.code);
+  if (e.code === 403) {
+    subscribers.delete(subscriberKey);
+  }
+};
+
 (async () => {
   let prevAdvertsIds = [];
 
@@ -125,8 +142,9 @@ if (initKeysArg) {
     prevAdvertsIds = allAdverts.map((a) => a.id);
 
     for (const subscriberKey of subscribers.keys()) {
+      const handleSendErrorForSubscriber = handleSendError(subscriberKey);
       const send = sendAdvert(subscriberKey);
-      newAdverts.forEach(send);
+      doSequantally(send, newAdverts).catch(handleSendErrorForSubscriber);
     }
 
     await sleep(UPDATE_INTERVAL);
