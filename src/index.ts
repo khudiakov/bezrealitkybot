@@ -13,6 +13,7 @@ import {
   API,
   BACKUP_INTERVAL,
   BOT_TOKEN,
+  HOST,
   INIT_KEYS_ARG_KEY,
   SUBSCRIBERS_BACKUP,
   UPDATE_INTERVAL,
@@ -20,7 +21,7 @@ import {
 
 import PRAGUE_BOUNDARIES from "./boundaries/prague.json";
 
-type TAdvertType = AdvertListQuery["advertList"]["list"][0];
+type TAdvertType = AdvertListQuery["listAdverts"]["list"][0];
 
 interface ISubscriber {
   timestamp: number;
@@ -34,23 +35,19 @@ const client = new ApolloClient({
 let subscribers = new Map<number, ISubscriber>();
 
 const fetchAdvert = async () => {
-  try {
-    const { data } = await client.query<
-      AdvertListQuery,
-      AdvertListQueryVariables
-    >({
-      query: AdvertList,
-      variables: {
-        boundaryPoints: PRAGUE_BOUNDARIES as AdvertListQueryVariables["boundaryPoints"],
-      },
-      fetchPolicy: "no-cache",
-    });
+  const { data } = await client.query<
+    AdvertListQuery,
+    AdvertListQueryVariables
+  >({
+    errorPolicy: 'ignore',
+    query: AdvertList,
+    variables: {
+      boundaryPoints: PRAGUE_BOUNDARIES as AdvertListQueryVariables["boundaryPoints"],
+    },
+    fetchPolicy: "no-cache",
+  });
 
-    return (data && data.advertList && data.advertList.list) || [];
-  } catch (error) {
-    console.warn(error);
-    return [];
-  }
+  return (data?.listAdverts?.list) || [];
 };
 
 const sleep = (duration: number) =>
@@ -72,23 +69,24 @@ const formatSubscribersLog = (
     .join("\n\n");
 };
 
-const sendAdvert = (chatId: number) => (advert: Advert) =>
-  bot.telegram.sendPhoto(chatId, advert.mainImageUrl, {
+
+
+const sendAdvert = (chatId: number) => (advert: TAdvertType) =>
+  bot.telegram.sendPhoto(chatId, advert.mainImage.url, {
     caption:
-      `[${advert.shortDescription}](${advert.absoluteUrl})\n` +
-      `*${advert.priceFormatted}*\n` +
-      (advert.addressUserInput == null
+      `[${advert.id}](${HOST}${advert.uri})\n\n` +
+      (advert.addressInput == null
         ? ""
-        : `[${
-            advert.addressUserInput
-          }](https://www.google.com/maps/search/${encodeURI(
-            advert.addressUserInput.replace(/\s/g, "+")
-          )})`),
+        : `[${advert.addressInput
+        }](https://www.google.com/maps/search/${encodeURI(
+          advert.addressInput.replace(/\s/g, "+")
+        )})`) + `\n` +
+      advert.formattedParameters.map(p => `_${p.title}: ${p.value}_`).join('\n'),
     // @ts-ignore
     parse_mode: "Markdown",
   });
 
-const getNewAdverts = (adverts: TAdvertType[], prevAdvertsIds: number[]) => {
+const getNewAdverts = (adverts: TAdvertType[], prevAdvertsIds: string[]) => {
   if (prevAdvertsIds.length === 0) {
     return [];
   }
@@ -134,7 +132,7 @@ const handleSendError = (subscriberKey: number) => (
 };
 
 (async () => {
-  let prevAdvertsIds = [];
+  let prevAdvertsIds: string[] = [];
 
   while (true) {
     const allAdverts = await fetchAdvert();

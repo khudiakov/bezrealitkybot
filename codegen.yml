@@ -1,4 +1,4 @@
-schema: "https://www.bezrealitky.cz/webgraphql"
+schema: "https://api.bezrealitky.cz/graphql/"
 documents: "src/**/*.graphql"
 generates:
   generated/scheme.graphql:

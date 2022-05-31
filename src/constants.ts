@@ -13,6 +13,7 @@ export const SUBSCRIBERS_BACKUP = !BACKUP_PATH
   ? null
   : `${BACKUP_PATH}/subscribers.json`;
 
-export const API = "https://www.bezrealitky.cz/webgraphql";
+export const API = "https://api.bezrealitky.cz/graphql/";
+export const HOST = "https://www.bezrealitky.com/properties-flats-houses/";
 
 export const INIT_KEYS_ARG_KEY = "keys";
