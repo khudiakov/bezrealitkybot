@@ -1,7 +1,4 @@
-export async function* iMap<T, U>(
-  fn: (x: T) => Promise<U>,
-  iterator: IterableIterator<T>
-) {
+export async function* iMap<T, U>(fn: (x: T) => Promise<U>, iterator: IterableIterator<T>) {
   let current = iterator.next();
   while (!current.done) {
     const result = await fn(current.value);
@@ -10,10 +7,7 @@ export async function* iMap<T, U>(
   }
 }
 
-export async function* iForEach<T, U>(
-  fn: (x: T) => Promise<U>,
-  iterator: IterableIterator<T>
-) {
+export async function* iForEach<T, U>(fn: (x: T) => Promise<U>, iterator: IterableIterator<T>) {
   let current = iterator.next();
   while (!current.done) {
     await fn(current.value);

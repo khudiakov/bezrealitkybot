@@ -1,22 +1,17 @@
 query AdvertList($boundaryPoints: [GPSPointInput!]!) {
-  listAdverts(
-    boundaryPoints: $boundaryPoints
-    offerType: PRONAJEM
-    estateType: BYT
-    order: TIMEORDER_DESC
-  ) {
+  listAdverts(boundaryPoints: $boundaryPoints, offerType: PRONAJEM, estateType: BYT, order: TIMEORDER_DESC) {
     list {
       id
       uri
       mainImage {
-				url(filter: RECORD_THUMB)
-			}
-			formattedParameters(locale: EN) {
-				name
-				title
-				value
-			}
-			addressInput
+        url(filter: RECORD_THUMB)
+      }
+      formattedParameters(locale: EN) {
+        name
+        title
+        value
+      }
+      addressInput
     }
   }
 }
