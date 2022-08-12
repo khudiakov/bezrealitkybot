@@ -1,5 +1,5 @@
 query AdvertList($boundaryPoints: [GPSPointInput!]!) {
-  listAdverts(boundaryPoints: $boundaryPoints, offerType: PRONAJEM, estateType: BYT, order: TIMEORDER_DESC) {
+  listAdverts(boundaryPoints: $boundaryPoints, offerType: PRONAJEM, estateType: BYT, order: TIMEORDER_DESC, limit: 10) {
     list {
       id
       uri

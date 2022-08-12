@@ -56,17 +56,12 @@ const sendAdvert = async (advert: AdvertWithId) => {
   });
 };
 
-const getNewAdverts = <T extends { id: string }>(adverts: T[], prevAdvertsIds: string[]) => {
-  if (prevAdvertsIds.length === 0) {
-    return adverts;
+const getNewAdverts = <T extends { id: string }>(adverts: T[], sentAdvertsIds: string[]) => {
+  if (sentAdvertsIds.length === 0) {
+    return [];
   }
 
-  let cursorIndex = adverts.findIndex((r) => prevAdvertsIds.includes(r.id));
-  if (cursorIndex === -1) {
-    cursorIndex = 1;
-  }
-
-  return adverts.slice(0, cursorIndex);
+  return adverts.filter((a) => !sentAdvertsIds.includes(a.id));
 };
 
 const MINUTE = 60 * 1000;
@@ -115,16 +110,18 @@ const doSequantallyWithRateLimit = async <T, R>(action: (v: T) => Promise<R>, va
 };
 
 (async () => {
-  let prevSentAdvertIds: string[] = [];
+  let sentAdvertIds: string[] = [];
 
   await sleep(untilNextMinute());
 
   while (true) {
     const allAdverts = await fetchAdvert();
-    const newAdverts = getNewAdverts(allAdverts, prevSentAdvertIds);
+    const newAdverts = getNewAdverts(allAdverts, sentAdvertIds);
 
-    const result = await doSequantallyWithRateLimit(sendAdvert, newAdverts);
-    prevSentAdvertIds = result.filter((r) => r.status === "fulfilled").map((r) => r.value.id);
+    const sendingResults = await doSequantallyWithRateLimit(sendAdvert, newAdverts);
+    sentAdvertIds = allAdverts
+      .map((a) => a.id)
+      .filter((aId) => sendingResults.find((ra) => ra.value.id === aId)?.status !== "rejected");
 
     await sleep(UPDATE_INTERVAL);
   }
