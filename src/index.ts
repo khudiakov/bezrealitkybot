@@ -115,13 +115,17 @@ const doSequantallyWithRateLimit = async <T, R>(action: (v: T) => Promise<R>, va
   await sleep(untilNextMinute());
 
   while (true) {
-    const allAdverts = await fetchAdvert();
-    const newAdverts = getNewAdverts(allAdverts, sentAdvertIds);
+    try {
+      const allAdverts = await fetchAdvert();
+      const newAdverts = getNewAdverts(allAdverts, sentAdvertIds);
 
-    const sendingResults = await doSequantallyWithRateLimit(sendAdvert, newAdverts);
-    sentAdvertIds = allAdverts
-      .map((a) => a.id)
-      .filter((aId) => sendingResults.find((ra) => ra.value.id === aId)?.status !== "rejected");
+      const sendingResults = await doSequantallyWithRateLimit(sendAdvert, newAdverts);
+      sentAdvertIds = allAdverts
+        .map((a) => a.id)
+        .filter((aId) => sendingResults.find((ra) => ra.value.id === aId)?.status !== "rejected");
+    } catch(error) {
+      console.error(error);
+    }
 
     await sleep(UPDATE_INTERVAL);
   }
