@@ -36,8 +36,8 @@ const sendAdvert = async (advert: AdvertWithId) => {
     (advert.addressInput == null
       ? ""
       : `[${advert.addressInput}](https://www.google.com/maps/search/${encodeURI(
-          advert.addressInput.replace(/\s/g, "+")
-        )})`) +
+        advert.addressInput.replace(/\s/g, "+")
+      )})`) +
     `\n` +
     (advert.formattedParameters ?? [])
       .map((p) => (p == null ? undefined : `_${p.title}: ${p.value}_`))
@@ -123,7 +123,7 @@ const doSequantallyWithRateLimit = async <T, R>(action: (v: T) => Promise<R>, va
       sentAdvertIds = allAdverts
         .map((a) => a.id)
         .filter((aId) => sendingResults.find((ra) => ra.value.id === aId)?.status !== "rejected");
-    } catch(error) {
+    } catch (error) {
       console.error(error);
     }
 
