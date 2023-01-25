@@ -3,10 +3,43 @@ import { InMemoryCache } from "@apollo/client/cache";
 import fetch from "node-fetch";
 import { Telegraf } from "telegraf";
 import { AdvertList } from "../generated/queries";
-import { Advert, AdvertListQuery, AdvertListQueryVariables } from "../generated/types";
+import { Advert, AdvertListQuery, AdvertListQueryVariables, FormattedParameter } from "../generated/types";
 import { API, BOT_TOKEN, HOST, UPDATE_INTERVAL, CHANNEL_CHAT_ID } from "./constants";
 
 import PRAGUE_BOUNDARIES from "./boundaries/prague.json";
+
+const SUPPORTED_PARAMETERS = {
+  "Floor Space": {
+    translation: "Площадь",
+    emoji: '📏'
+  },
+  "Price": {
+    translation: 'Цена',
+    emoji: '💸'
+  },
+  "Fees": {
+    translation: "Комунальные",
+    emoji: '🚰'
+  },
+  "Available from": {
+    translation: "Доступно с",
+    emoji: "✍️"
+  },
+}
+
+// const Translation = {
+//   "Listing ID": "Идентификатор листинга",
+//   "Layout": "Планировка",
+//   "Floor Space": "Площадь",
+//   "Price": "Цена",
+//   "Fees": "Сборы",
+//   "Refundable security deposit": "Возвращаемый гарантийный депозит",
+//   "Building Type": "Тип здания",
+//   "PENB": "PENB",
+//   "Furnishing and Fittings": "Меблировка и оборудование",
+//   "Floor": "Этаж",
+//   "Available from": "Доступно с",
+// }
 
 const client = new ApolloClient({
   link: new HttpLink({ uri: API, fetch }),
@@ -30,18 +63,27 @@ const fetchAdvert = async (): Promise<AdvertWithId[]> => {
 
 const sleep = (duration: number) => new Promise((resolve) => setTimeout(resolve, duration));
 
+
+type SupportedFormatteParameter = FormattedParameter & { title: keyof typeof SUPPORTED_PARAMETERS }
+function isSupportedParatemeter(p: FormattedParameter | undefined | null): p is SupportedFormatteParameter {
+  return p?.title != null && p.title in SUPPORTED_PARAMETERS
+}
+
 const sendAdvert = async (advert: AdvertWithId) => {
   const text =
-    `[${advert.id}](${HOST}${advert.uri})\n\n` +
+    `🏡 [Show on website | Показать на сайте](${HOST}${advert.uri})\n\n` +
     (advert.addressInput == null
       ? ""
-      : `[${advert.addressInput}](https://www.google.com/maps/search/${encodeURI(
+      : `📍 *Address | Адрес*:\n${advert.addressInput}\n[Show on map | Показать на карте](https://www.google.com/maps/search/${encodeURI(
         advert.addressInput.replace(/\s/g, "+")
       )})`) +
-    `\n` +
+    `\n\n` +
     (advert.formattedParameters ?? [])
-      .map((p) => (p == null ? undefined : `_${p.title}: ${p.value}_`))
-      .filter((p) => p !== undefined)
+      .filter((p) => isSupportedParatemeter(p))
+      .map((p) => {
+        const sp = p as SupportedFormatteParameter;
+        return `${SUPPORTED_PARAMETERS[sp.title].emoji} *${sp.title} | ${SUPPORTED_PARAMETERS[sp.title].translation}:* ${sp.value}`
+      })
       .join("\n");
 
   if (advert.mainImage?.url == null) {
@@ -58,7 +100,7 @@ const sendAdvert = async (advert: AdvertWithId) => {
 
 const getNewAdverts = <T extends { id: string }>(adverts: T[], sentAdvertsIds: string[]) => {
   if (sentAdvertsIds.length === 0) {
-    return [];
+    return [adverts[0]];
   }
 
   return adverts.filter((a) => !sentAdvertsIds.includes(a.id));
