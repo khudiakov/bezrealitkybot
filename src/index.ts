@@ -18,7 +18,7 @@ const SUPPORTED_PARAMETERS = {
     emoji: '💸'
   },
   "Fees": {
-    translation: "Комунальные",
+    translation: "Коммунальные",
     emoji: '🚰'
   },
   "Available from": {
@@ -100,7 +100,7 @@ const sendAdvert = async (advert: AdvertWithId) => {
 
 const getNewAdverts = <T extends { id: string }>(adverts: T[], sentAdvertsIds: string[]) => {
   if (sentAdvertsIds.length === 0) {
-    return [adverts[0]];
+    return [];
   }
 
   return adverts.filter((a) => !sentAdvertsIds.includes(a.id));
